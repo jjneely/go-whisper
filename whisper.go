@@ -137,7 +137,7 @@ type Whisper struct {
 	Create a new Whisper database file and write it's header.
 */
 func Create(path string, retentions Retentions, aggregationMethod AggregationMethod, xFilesFactor float32) (whisper *Whisper, err error) {
-	sort.Sort(retentionsByPrecision{retentions})
+	sort.Sort(RetentionsByPrecision{retentions})
 	if err = validateRetentions(retentions); err != nil {
 		return nil, err
 	}
@@ -292,6 +292,23 @@ func (whisper *Whisper) Size() int {
 */
 func (whisper *Whisper) MetadataSize() int {
 	return MetadataSize + (ArchiveInfoSize * len(whisper.archives))
+}
+
+/*
+  Retentions returns a Retentions type which lists each archive's retention
+  in this Whisper file.  A deep copy so that the internal data structure
+  remains safe.
+*/
+func (whisper *Whisper) Retentions() (retentions Retentions) {
+	retentions = make(Retentions, 0)
+	for _, v := range whisper.archives {
+		r := new(Retention)
+		r.secondsPerPoint = v.Retention.secondsPerPoint
+		r.numberOfPoints = v.Retention.numberOfPoints
+		retentions = append(retentions, r)
+	}
+
+	return retentions
 }
 
 /*
@@ -642,6 +659,14 @@ func (retention *Retention) Size() int {
 	return retention.numberOfPoints * PointSize
 }
 
+func (retention *Retention) SecondsPerPoint() int {
+	return retention.secondsPerPoint
+}
+
+func (retention *Retention) NumberOfPoints() int {
+	return retention.numberOfPoints
+}
+
 type Retentions []*Retention
 
 func (r Retentions) Len() int {
@@ -652,10 +677,14 @@ func (r Retentions) Swap(i, j int) {
 	r[i], r[j] = r[j], r[i]
 }
 
-type retentionsByPrecision struct{ Retentions }
+type RetentionsByPrecision struct{ Retentions }
 
-func (r retentionsByPrecision) Less(i, j int) bool {
+func (r RetentionsByPrecision) Less(i, j int) bool {
 	return r.Retentions[i].secondsPerPoint < r.Retentions[j].secondsPerPoint
+}
+
+func (r RetentionsByPrecision) Iterator() Retentions {
+	return r.Retentions
 }
 
 /*
